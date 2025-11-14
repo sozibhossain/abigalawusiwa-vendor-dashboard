@@ -1,50 +1,75 @@
-"use client"
+"use client";
 
-import { useState } from "react"
-import { signOut, useSession } from "next-auth/react"
-import { useRouter } from "next/navigation"
-import { Menu, Search, Bell, Settings, User, LogOut } from "lucide-react"
-import { Input } from "@/components/ui/input"
-import Link from "next/link"
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import { useToast } from "@/components/toast-provider"
-import { DeleteModal } from "./delete-modal"
-import Image from "next/image"
+import { useState } from "react";
+import { signOut, useSession } from "next-auth/react";
+import { useRouter } from "next/navigation";
+import {
+  Menu,
+  Search,
+  Bell,
+  Settings,
+  User,
+  LogOut,
+  MessageCircleMore,
+} from "lucide-react";
+import { Input } from "@/components/ui/input";
+import Link from "next/link";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { useToast } from "@/components/toast-provider";
+import { DeleteModal } from "./delete-modal";
+import Image from "next/image";
 
 export function Header({ onMenuClick }: { onMenuClick: () => void }) {
-  const { data: session } = useSession()
-  const router = useRouter()
-  const { addToast } = useToast()
-  const [showLogoutModal, setShowLogoutModal] = useState(false)
+  const { data: session } = useSession();
+  const router = useRouter();
+  const { addToast } = useToast();
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
 
   const handleLogout = async () => {
-    await signOut({ redirect: false })
-    addToast({ title: "Logged out successfully", type: "success" })
-    router.push("/auth/login")
-    setShowLogoutModal(false)
-  }
+    await signOut({ redirect: false });
+    addToast({ title: "Logged out successfully", type: "success" });
+    router.push("/auth/login");
+    setShowLogoutModal(false);
+  };
 
   return (
     <>
       <header className="bg-[#E8F0F8] border-b border-gray-200 px-8 py-4 flex items-center justify-between">
-        <button onClick={onMenuClick} className="lg:hidden p-2 hover:bg-gray-100 rounded-lg">
+        <button
+          onClick={onMenuClick}
+          className="lg:hidden p-2 hover:bg-gray-100 rounded-lg"
+        >
           <Menu className="w-5 h-5" />
         </button>
 
         <div className="flex-1 max-w-md mx-4">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
-            <Input placeholder="Search" className="pl-10 bg-white border-gray-200" />
+            <Input
+              placeholder="Search"
+              className="pl-10 bg-white border-gray-200"
+            />
           </div>
         </div>
 
         <div className="flex items-center gap-4">
-          <Link href="/dashboard/notifications" className="p-2 hover:bg-gray-100 rounded-lg">
-            <Bell className="w-5 h-5 text-gray-600" />
+          <Link
+            href="/dashboard/notifications"
+            className="p-2 hover:bg-blue-600 hover:text-white rounded-lg"
+          >
+            <Bell className="w-5 h-5 hover:text-white" />
           </Link>
-          <button className="p-2 hover:bg-gray-100 rounded-lg">
-            <Settings className="w-5 h-5 text-gray-600" />
-          </button>
+          <Link
+            href="/dashboard/messages"
+            className="p-2 hover:bg-blue-600 hover:text-white rounded-lg"
+          >
+            <MessageCircleMore className="w-5 h-5 hover:text-white" />
+          </Link>
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -64,7 +89,6 @@ export function Header({ onMenuClick }: { onMenuClick: () => void }) {
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-48">
               <div className="px-4 py-2 border-b">
-                <p className="text-sm font-medium text-gray-900">{session?.user?.email}</p>
                 <p className="text-xs text-gray-500">{session?.user?.role}</p>
               </div>
               <DropdownMenuItem asChild>
@@ -72,16 +96,6 @@ export function Header({ onMenuClick }: { onMenuClick: () => void }) {
                   <User className="w-4 h-4 mr-2" />
                   Profile
                 </Link>
-              </DropdownMenuItem>
-              <DropdownMenuItem asChild>
-                <Link href="/dashboard/account" className="cursor-pointer">
-                  <Settings className="w-4 h-4 mr-2" />
-                  Settings
-                </Link>
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setShowLogoutModal(true)} className="text-red-600 cursor-pointer">
-                <LogOut className="w-4 h-4 mr-2" />
-                Log Out
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -96,5 +110,5 @@ export function Header({ onMenuClick }: { onMenuClick: () => void }) {
         onCancel={() => setShowLogoutModal(false)}
       />
     </>
-  )
+  );
 }

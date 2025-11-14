@@ -1,10 +1,12 @@
 "use client"
 
 import { useParams } from "next/navigation"
-import AddEditProductPage from "../../_components/add_edit_product"
+import EditProductPage from "../../_components/EditProductPage"
 
-export default function EditProductPage() {
+export default function EditProduct() {
   const { id } = useParams()  
 
-  return <AddEditProductPage productId={id as string} />
+  console.log(id, "IIIIIIIIIIIIIII")
+
+  return <EditProductPage productId={id as string} />
 }

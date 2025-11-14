@@ -1,76 +1,274 @@
-"use client"
+"use client";
 
-import type React from "react"
+import type React from "react";
+import { useEffect, useRef, useState } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { useSession } from "next-auth/react";
+import { useToast } from "@/components/toast-provider";
+import { accountApi } from "@/lib/api";
+import { Upload } from "lucide-react";
+import { DeleteModal } from "@/components/delete-modal";
+import Image from "next/image";
+import ChengePassword from "./_components/chenge-password";
 
-import { useState } from "react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { useSession } from "next-auth/react"
-import { useToast } from "@/components/toast-provider"
-import { authApi } from "@/lib/api"
-import { Eye, EyeOff, Upload, Trash2 } from "lucide-react"
-import { DeleteModal } from "@/components/delete-modal"
-import Image from "next/image"
+type VendorRequest = {
+  storeLogo?: string;
+  storeName?: string;
+  storeDescription?: string;
+  contactEmail?: string;
+  storePhone?: string;
+  city?: string;
+  state?: string;
+  country?: string;
+  postcode?: string;
+  suburb?: string;
+  placeName?: string;
+  address?: string;
+  [key: string]: any;
+};
 
 export default function AccountPage() {
-  const { data: session } = useSession()
-  const { addToast } = useToast()
-  const [showPasswordForm, setShowPasswordForm] = useState(false)
-  const [showDeleteModal, setShowDeleteModal] = useState(false)
-  const [showPassword, setShowPassword] = useState(false)
-  const [showNewPassword, setShowNewPassword] = useState(false)
-  const [loading, setLoading] = useState(false)
+  const { data: session, status } = useSession();
+  const { addToast } = useToast();
+
+  const [showPasswordForm, setShowPasswordForm] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [profileLoading, setProfileLoading] = useState(false);
+  const [avatarUploading, setAvatarUploading] = useState(false);
+  const [storeLogoUploading, setStoreLogoUploading] = useState(false);
+
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const storeLogoInputRef = useRef<HTMLInputElement | null>(null);
+
+  const userId = (session?.user as any)?._id || (session?.user as any)?.id;
+  const storeId = (session?.user as any)?.storeId;
 
   const [profileData, setProfileData] = useState({
-    name: session?.user?.name || "",
-    email: session?.user?.email || "",
-    phone: "",
+    // user fields
+    name: "",
+    email: "",
+    dob: "",
+    gender: "",
+    city: "",
+    state: "",
+    country: "",
+    postcode: "",
+    suburb: "",
+    placeName: "",
     address: "",
-    birthday: "",
-  })
 
-  const [passwordData, setPasswordData] = useState({
-    oldPassword: "",
-    newPassword: "",
-    confirmPassword: "",
-  })
+    // vendorRequest fields
+    storeName: "",
+    storeDescription: "",
+    contactEmail: "",
+    storePhone: "",
+  });
 
-  const handleChangePassword = async (e: React.FormEvent) => {
-    e.preventDefault()
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [storeLogoUrl, setStoreLogoUrl] = useState<string | null>(null);
+  const [vendorRequestState, setVendorRequestState] =
+    useState<VendorRequest | null>(null);
 
-    if (passwordData.newPassword !== passwordData.confirmPassword) {
-      addToast({ title: "Passwords do not match", type: "error" })
-      return
+  // 🔄 Reusable function: get ALL data and show in UI
+  const loadProfile = async () => {
+    if (!userId) return;
+    try {
+      setProfileLoading(true);
+      const res = await accountApi.getAccountDetails(userId);
+      const user = res.data?.data;
+
+      const vendorReq: VendorRequest = user?.vendorRequest || {};
+
+      setVendorRequestState(vendorReq);
+
+      setProfileData({
+        name: user?.name ?? "",
+        email: user?.email ?? "",
+        dob: user?.dob ? user.dob.slice(0, 10) : "",
+        gender: user?.gender ?? "",
+
+        city: vendorReq.city || user?.city || "",
+        state: vendorReq.state || user?.state || "",
+        country: vendorReq.country || user?.country || "",
+        postcode: vendorReq.postcode || user?.postcode || "",
+        suburb: vendorReq.suburb || user?.suburb || "",
+        placeName: vendorReq.placeName || user?.placeName || "",
+        address: vendorReq.address || user?.address || "",
+
+        storeName: vendorReq.storeName || "",
+        storeDescription: vendorReq.storeDescription || "",
+        contactEmail: vendorReq.contactEmail || user?.email || "",
+        storePhone: vendorReq.storePhone || "",
+      });
+
+      setAvatarUrl(
+        user?.profileImage ||
+          (session?.user?.image as string | undefined) ||
+          null
+      );
+
+      setStoreLogoUrl(vendorReq.storeLogo || null);
+    } catch (error: any) {
+      console.error(error);
+      addToast({
+        title: error?.response?.data?.message || "Failed to load profile",
+        type: "error",
+      });
+    } finally {
+      setProfileLoading(false);
     }
+  };
 
-    if (passwordData.newPassword.length < 6) {
-      addToast({ title: "Password must be at least 6 characters", type: "error" })
-      return
-    }
+  // load once on mount
+  useEffect(() => {
+    if (!userId || status !== "authenticated") return;
+    loadProfile();
+  }, [userId, status]); // eslint-disable-line react-hooks/exhaustive-deps
 
-    setLoading(true)
+  // 💾 Update ALL mapped data when clicking "Update Profile"
+  const handleUpdateProfile = async () => {
+    if (!userId) return;
 
     try {
-      await authApi.changePassword(passwordData.oldPassword, passwordData.newPassword)
-      addToast({ title: "Password changed successfully", type: "success" })
-      setPasswordData({ oldPassword: "", newPassword: "", confirmPassword: "" })
-      setShowPasswordForm(false)
+      setProfileLoading(true);
+
+      const updatedVendorRequest: VendorRequest = {
+        ...(vendorRequestState || {}),
+        storeName: profileData.storeName,
+        storeDescription: profileData.storeDescription,
+        contactEmail: profileData.contactEmail,
+        storePhone: profileData.storePhone,
+        city: profileData.city,
+        state: profileData.state,
+        country: profileData.country,
+        postcode: profileData.postcode,
+        suburb: profileData.suburb,
+        placeName: profileData.placeName,
+        address: profileData.address,
+      };
+
+      const body = {
+        name: profileData.name,
+        email: profileData.email,
+        dob: profileData.dob || null,
+        gender: profileData.gender || null,
+        city: profileData.city,
+        state: profileData.state,
+        country: profileData.country,
+        postcode: profileData.postcode,
+        suburb: profileData.suburb,
+        placeName: profileData.placeName,
+        address: profileData.address,
+        vendorRequest: updatedVendorRequest,
+      };
+
+      await accountApi.updateAccountDetails(userId, body);
+      addToast({ title: "Profile updated successfully", type: "success" });
+
+      // ⬇️ immediately refetch to show latest data from backend
+      await loadProfile();
     } catch (error: any) {
       addToast({
-        title: error?.response?.data?.message || "Failed to change password",
+        title: error?.response?.data?.message || "Failed to update profile",
         type: "error",
-      })
+      });
     } finally {
-      setLoading(false)
+      setProfileLoading(false);
     }
-  }
+  };
+
+  // 📤 Avatar upload
+  const handleAvatarClick = () => fileInputRef.current?.click();
+
+  const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files?.[0] || !userId) return;
+    const file = e.target.files[0];
+
+    const formData = new FormData();
+    formData.append("profileImage", file);
+
+    try {
+      setAvatarUploading(true);
+      const res = await accountApi.uploadAvatar(userId, formData);
+      const user = res.data?.data || res.data;
+      const newUrl = user?.profileImage;
+      if (newUrl) setAvatarUrl(newUrl);
+      addToast({ title: "Avatar updated successfully", type: "success" });
+
+      // optional: refresh all other data too
+      await loadProfile();
+    } catch (error: any) {
+      addToast({
+        title: error?.response?.data?.message || "Failed to upload avatar",
+        type: "error",
+      });
+    } finally {
+      setAvatarUploading(false);
+      e.target.value = "";
+    }
+  };
+
+  // 📤 Store logo upload
+  const handleStoreLogoClick = () => storeLogoInputRef.current?.click();
+
+  const handleStoreLogoChange = async (
+    e: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    if (!e.target.files?.[0] || !storeId) return;
+    const file = e.target.files[0];
+
+    const formData = new FormData();
+    formData.append("storeLogo", file);
+
+    try {
+      setStoreLogoUploading(true);
+      const res = await accountApi.uploadStoreLogo(storeId, formData);
+      const user = res.data?.data || res.data;
+      const newLogo =
+        user?.vendorRequest?.storeLogo || user?.storeLogo || null;
+
+      if (newLogo) setStoreLogoUrl(newLogo);
+
+      addToast({ title: "Store logo updated successfully", type: "success" });
+
+      // refresh full profile so vendorRequest in state is in sync
+      await loadProfile();
+    } catch (error: any) {
+      addToast({
+        title: error?.response?.data?.message || "Failed to upload store logo",
+        type: "error",
+      });
+    } finally {
+      setStoreLogoUploading(false);
+      e.target.value = "";
+    }
+  };
 
   return (
     <div className="p-8 space-y-8">
+      {/* Header with actions */}
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-bold text-gray-900">Account</h1>
-        <p className="text-gray-600 text-sm">Customize until match to your workflow</p>
+
+        <div className="flex items-center gap-4">
+          <Button
+            type="button"
+            onClick={() => setShowPasswordForm(true)}
+            className="text-sm font-medium bg-blue-600 hover:bg-blue-700"
+          >
+            Change Password
+          </Button>
+          <Button
+            type="button"
+            onClick={() => setShowDeleteModal(true)}
+            className="text-sm font-medium text-red-600 hover:underline bg-transparent"
+            variant="ghost"
+          >
+            Delete Account
+          </Button>
+        </div>
       </div>
 
       {/* Profile Section */}
@@ -79,197 +277,331 @@ export default function AccountPage() {
           <CardTitle>Profile</CardTitle>
         </CardHeader>
         <CardContent className="space-y-6">
-          <div className="flex items-center gap-6 pb-6 border-b">
+          {/* Avatar + Store logo */}
+          <div className="flex items-center gap-8 pb-6 border-b">
+            {/* User Avatar */}
             <div className="relative">
               <div className="w-24 h-24 bg-gradient-to-br from-purple-400 to-pink-400 rounded-full flex items-center justify-center overflow-hidden">
-                {session?.user?.image ? (
+                {avatarUrl ? (
                   <Image
-                    src={session.user.image || "/placeholder.svg"}
+                    src={avatarUrl}
                     alt="Profile"
                     width={96}
                     height={96}
                     className="w-full h-full object-cover"
                   />
+                ) : profileData.name ? (
+                  <span className="text-2xl text-white font-bold">
+                    {profileData.name.charAt(0).toUpperCase()}
+                  </span>
                 ) : (
-                  <span className="text-2xl text-white font-bold">{session?.user?.name?.charAt(0).toUpperCase()}</span>
+                  <span className="text-2xl text-white font-bold">U</span>
                 )}
               </div>
-              <button className="absolute bottom-0 right-0 bg-blue-600 text-white p-2 rounded-full hover:bg-blue-700">
+
+              <button
+                type="button"
+                onClick={handleAvatarClick}
+                disabled={avatarUploading}
+                className="absolute bottom-0 right-0 bg-blue-600 text-white p-2 rounded-full hover:bg-blue-700 disabled:opacity-60"
+              >
                 <Upload className="w-4 h-4" />
               </button>
+
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={handleAvatarChange}
+              />
             </div>
-            <div>
-              <h3 className="font-semibold text-gray-900">{session?.user?.name}</h3>
-              <p className="text-sm text-gray-600">{session?.user?.role}</p>
+
+            {/* Text info */}
+            <div className="flex-1">
+              <h3 className="font-semibold text-gray-900">
+                {profileData.name || "Vendor"}
+              </h3>
+              <p className="text-sm text-gray-600">
+                {(session?.user as any)?.role || "VENDOR"}
+              </p>
+              <p className="text-xs text-gray-500 mt-1">{profileData.email}</p>
+            </div>
+
+            {/* Store logo preview + upload */}
+            <div className="flex flex-col items-center">
+              <span className="text-xs text-gray-500 mb-1">Store Logo</span>
+              <div className="relative w-20 h-20 border rounded-lg overflow-hidden bg-white flex items-center justify-center">
+                {storeLogoUrl ? (
+                  <Image
+                    src={storeLogoUrl}
+                    alt="Store Logo"
+                    width={80}
+                    height={80}
+                    className="w-full h-full object-contain"
+                  />
+                ) : (
+                  <span className="text-[10px] text-gray-400 text-center px-1">
+                    No logo
+                  </span>
+                )}
+
+                <button
+                  type="button"
+                  onClick={handleStoreLogoClick}
+                  disabled={storeLogoUploading}
+                  className="absolute bottom-1 right-1 bg-blue-600 text-white p-1 rounded-full hover:bg-blue-700 disabled:opacity-60"
+                >
+                  <Upload className="w-3 h-3" />
+                </button>
+
+                <input
+                  ref={storeLogoInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handleStoreLogoChange}
+                />
+              </div>
+              {storeLogoUploading && (
+                <span className="text-[10px] text-gray-500 mt-1">
+                  Uploading...
+                </span>
+              )}
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          {/* User + Vendor fields (unchanged) */}
+          <div className="grid grid-cols-2 gap-4 max-w-4xl">
+            {/* USER */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Name</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Name
+              </label>
               <Input
                 value={profileData.name}
-                onChange={(e) => setProfileData({ ...profileData, name: e.target.value })}
-                className="bg-white"
+                onChange={(e) =>
+                  setProfileData({ ...profileData, name: e.target.value })
+                }
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Email</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Email
+              </label>
               <Input
                 type="email"
                 value={profileData.email}
-                onChange={(e) => setProfileData({ ...profileData, email: e.target.value })}
-                className="bg-white"
+                onChange={(e) =>
+                  setProfileData({ ...profileData, email: e.target.value })
+                }
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Phone Number</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Gender
+              </label>
               <Input
-                value={profileData.phone}
-                onChange={(e) => setProfileData({ ...profileData, phone: e.target.value })}
-                className="bg-white"
-                placeholder="(400) 555-0120"
+                value={profileData.gender}
+                onChange={(e) =>
+                  setProfileData({ ...profileData, gender: e.target.value })
+                }
+                placeholder="male / female / other"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Address</label>
-              <Input
-                value={profileData.address}
-                onChange={(e) => setProfileData({ ...profileData, address: e.target.value })}
-                className="bg-white"
-                placeholder="4317 Washington Ave"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Birthday</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Birthday (dob)
+              </label>
               <Input
                 type="date"
-                value={profileData.birthday}
-                onChange={(e) => setProfileData({ ...profileData, birthday: e.target.value })}
-                className="bg-white"
+                value={profileData.dob}
+                onChange={(e) =>
+                  setProfileData({ ...profileData, dob: e.target.value })
+                }
+              />
+            </div>
+
+            {/* STORE INFO (vendorRequest) */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Store Name
+              </label>
+              <Input
+                value={profileData.storeName}
+                onChange={(e) =>
+                  setProfileData({ ...profileData, storeName: e.target.value })
+                }
+                placeholder="Fresh Food Market"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Store Description
+              </label>
+              <Input
+                value={profileData.storeDescription}
+                onChange={(e) =>
+                  setProfileData({
+                    ...profileData,
+                    storeDescription: e.target.value,
+                  })
+                }
+                placeholder="Premium grocery"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Contact Email
+              </label>
+              <Input
+                type="email"
+                value={profileData.contactEmail}
+                onChange={(e) =>
+                  setProfileData({
+                    ...profileData,
+                    contactEmail: e.target.value,
+                  })
+                }
+                placeholder="contact@freshfoodmarket.com"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Store Phone
+              </label>
+              <Input
+                value={profileData.storePhone}
+                onChange={(e) =>
+                  setProfileData({ ...profileData, storePhone: e.target.value })
+                }
+                placeholder="+1234567890"
+              />
+            </div>
+
+            {/* ADDRESS */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                City
+              </label>
+              <Input
+                value={profileData.city}
+                onChange={(e) =>
+                  setProfileData({ ...profileData, city: e.target.value })
+                }
+                placeholder="New York, NY"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                State
+              </label>
+              <Input
+                value={profileData.state}
+                onChange={(e) =>
+                  setProfileData({ ...profileData, state: e.target.value })
+                }
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Country
+              </label>
+              <Input
+                value={profileData.country}
+                onChange={(e) =>
+                  setProfileData({ ...profileData, country: e.target.value })
+                }
+                placeholder="United States"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Postcode
+              </label>
+              <Input
+                value={profileData.postcode}
+                onChange={(e) =>
+                  setProfileData({ ...profileData, postcode: e.target.value })
+                }
+                placeholder="10001"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Suburb
+              </label>
+              <Input
+                value={profileData.suburb}
+                onChange={(e) =>
+                  setProfileData({ ...profileData, suburb: e.target.value })
+                }
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Place Name
+              </label>
+              <Input
+                value={profileData.placeName}
+                onChange={(e) =>
+                  setProfileData({ ...profileData, placeName: e.target.value })
+                }
+              />
+            </div>
+            <div className="col-span-2">
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Full Address
+              </label>
+              <Input
+                value={profileData.address}
+                onChange={(e) =>
+                  setProfileData({ ...profileData, address: e.target.value })
+                }
+                placeholder="123 Main Street, Downtown, New York, NY, United States - 10001"
               />
             </div>
           </div>
 
-          <div className="flex gap-3">
-            <Button className="flex-1 bg-blue-600 hover:bg-blue-700">Update Profile</Button>
-            <Button variant="outline" className="flex-1 bg-transparent">
-              Cancel
+          <div className="flex gap-3 max-w-md">
+            <Button
+              onClick={handleUpdateProfile}
+              disabled={profileLoading}
+              className="flex-1 bg-blue-600 hover:bg-blue-700"
+            >
+              {profileLoading ? "Updating..." : "Update Profile"}
+            </Button>
+            <Button
+              variant="outline"
+              className="flex-1"
+              type="button"
+              onClick={loadProfile}
+              disabled={profileLoading}
+            >
+              Reset Changes
             </Button>
           </div>
         </CardContent>
       </Card>
 
-      {/* Password Section */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Password</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {!showPasswordForm ? (
-            <Button onClick={() => setShowPasswordForm(true)} className="bg-blue-600 hover:bg-blue-700">
-              Change Password
-            </Button>
-          ) : (
-            <form onSubmit={handleChangePassword} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Current Password</label>
-                <div className="relative">
-                  <Input
-                    type={showPassword ? "text" : "password"}
-                    value={passwordData.oldPassword}
-                    onChange={(e) => setPasswordData({ ...passwordData, oldPassword: e.target.value })}
-                    className="bg-white pr-10"
-                    disabled={loading}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 transform -translate-y-1/2"
-                  >
-                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </button>
-                </div>
-              </div>
+      {/* 🔵 Change Password Modal */}
+      {showPasswordForm && (
+        <ChengePassword onClose={() => setShowPasswordForm(false)} />
+      )}
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">New Password</label>
-                <div className="relative">
-                  <Input
-                    type={showNewPassword ? "text" : "password"}
-                    value={passwordData.newPassword}
-                    onChange={(e) => setPasswordData({ ...passwordData, newPassword: e.target.value })}
-                    className="bg-white pr-10"
-                    disabled={loading}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowNewPassword(!showNewPassword)}
-                    className="absolute right-3 top-1/2 transform -translate-y-1/2"
-                  >
-                    {showNewPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </button>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Confirm Password</label>
-                <Input
-                  type="password"
-                  value={passwordData.confirmPassword}
-                  onChange={(e) => setPasswordData({ ...passwordData, confirmPassword: e.target.value })}
-                  className="bg-white"
-                  disabled={loading}
-                />
-              </div>
-
-              <div className="flex gap-3">
-                <Button type="submit" disabled={loading} className="flex-1 bg-blue-600 hover:bg-blue-700">
-                  {loading ? "Updating..." : "Update Password"}
-                </Button>
-                <Button
-                  type="button"
-                  onClick={() => setShowPasswordForm(false)}
-                  variant="outline"
-                  className="flex-1"
-                  disabled={loading}
-                >
-                  Cancel
-                </Button>
-              </div>
-            </form>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Delete Account Section */}
-      <Card className="border-red-200 bg-red-50">
-        <CardHeader>
-          <CardTitle className="text-red-600">Delete account</CardTitle>
-          <p className="text-sm text-gray-600 mt-1">
-            When you delete your account, you lose access to services, and we permanently delete your personal data. You
-            can cancel the deletion for 14 days.
-          </p>
-        </CardHeader>
-        <CardContent>
-          <Button onClick={() => setShowDeleteModal(true)} className="bg-red-600 hover:bg-red-700">
-            <Trash2 className="w-4 h-4 mr-2" />
-            Delete Account
-          </Button>
-        </CardContent>
-      </Card>
-
+      {/* 🔴 Delete Account Modal (Yes / No) */}
       <DeleteModal
         open={showDeleteModal}
         title="Delete Account"
-        message="Are you sure you want to delete your account? This action cannot be undone. You have 14 days to cancel."
-        confirmText="Yes, Delete My Account"
+        message="Are you sure you want to delete your account? This action cannot be undone."
+        confirmText="Yes, delete my account"
         onConfirm={() => {
-          addToast({ title: "Account deletion initiated", type: "success" })
-          setShowDeleteModal(false)
+          // TODO: call your real delete API here
+          addToast({ title: "Account deletion initiated", type: "success" });
+          setShowDeleteModal(false);
         }}
         onCancel={() => setShowDeleteModal(false)}
       />
     </div>
-  )
+  );
 }

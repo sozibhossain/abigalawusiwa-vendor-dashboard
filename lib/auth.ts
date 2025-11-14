@@ -17,16 +17,21 @@ export const authOptions: NextAuthOptions = {
           const response = await authApi.login(credentials.email, credentials.password)
 
           if (response.data.status && response.data.data) {
-            const { user, accessToken } = response.data.data
+            const { user, accessToken, storeId } = response.data.data
+
+            // 👇 This object becomes `user` in the jwt callback
             return {
               id: user._id,
+              _id: user._id, // convenience
               email: user.email,
-              name: user.name,
+              name: user.name, // might be undefined but safe
               role: user.role,
               accessToken,
               image: user.profileImage,
-            }
+              storeId: storeId || user.vendorRequest?.store,
+            } as any
           }
+
           return null
         } catch (error) {
           return null
@@ -35,19 +40,32 @@ export const authOptions: NextAuthOptions = {
     }),
   ],
   callbacks: {
+    // 🧠 Put everything you need into the JWT
     async jwt({ token, user }) {
       if (user) {
         token.accessToken = (user as any).accessToken
         token.role = (user as any).role
+        token.storeId = (user as any).storeId
+        token.userId = (user as any).id || (user as any)._id
+        token.image = (user as any).image
       }
       return token
     },
+
+    // 🧾 Expose those values on `session.user`
     async session({ session, token }) {
       session.user = {
+        // keep whatever NextAuth gives (name/email/image)
         ...(session.user || {}),
-        role: token.role,
-        accessToken: token.accessToken,
+        // our extras:
+        id: (token as any).userId,
+        _id: (token as any).userId,
+        role: (token as any).role,
+        accessToken: (token as any).accessToken,
+        storeId: (token as any).storeId,
+        image: session.user?.image || (token as any).image,
       } as any
+
       return session
     },
   },

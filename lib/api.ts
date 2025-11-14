@@ -16,12 +16,10 @@ export const initializeApi = () => {
   // 🔥 Attach Access Token from NextAuth
   apiInstance.interceptors.request.use(async (config) => {
     const session = await getSession()
-
     const token = session?.user?.accessToken
     if (token) {
       config.headers.Authorization = `Bearer ${token}`
     }
-
     return config
   })
 
@@ -68,7 +66,7 @@ export const productApi = {
     if (mainCategory) params.append("mainCategory", mainCategory)
     params.append("page", page.toString())
     params.append("limit", limit.toString())
-    return getApi().get(`/product?${params.toString()}`)
+    return getApi().get(`/vendor/get-all-products?${params.toString()}`)
   },
   getById: (id: string) => getApi().get(`/product/${id}`),
   create: (data: FormData) =>
@@ -76,7 +74,7 @@ export const productApi = {
       headers: { "Content-Type": "multipart/form-data" },
     }),
   update: (id: string, data: FormData) =>
-    getApi().patch(`/product/${id}`, data, {
+    getApi().put(`/product/${id}`, data, {
       headers: { "Content-Type": "multipart/form-data" },
     }),
   delete: (id: string) => getApi().delete(`/product/${id}`),
@@ -113,11 +111,36 @@ export const couponApi = {
   delete: (id: string) => getApi().delete(`/promoCode/${id}`),
 }
 
-
 export const erningApi = {
   getEarnings: () => getApi().get("/vendor/earnings"),
 }
+
 // 💳 Subscription APIs
 export const subscriptionApi = {
   getAll: () => getApi().get("/subscription/get-all"),
+}
+
+// 👤 Account / Profile APIs
+export const accountApi = {
+  
+  // Basic profile
+  getAccountDetails: (userId: string) => getApi().get(`/user/${userId}`),
+  
+  updateAccountDetails: (userId: string, data: FormData) =>
+    getApi().put(`/user/${userId}`, data, {
+      headers: { "Content-Type": "multipart/form-data" },
+    }),
+
+  // Avatar
+  getAvatar: (userId: string) =>
+    getApi().get(`/user/upload-avatar/${userId}`),
+  uploadAvatar: (userId: string, data: FormData) =>
+    getApi().put(`/user/upload-avatar/${userId}`, data, {
+      headers: { "Content-Type": "multipart/form-data" },
+    }),
+     // ⭐ NEW: upload store logo using storeId
+  uploadStoreLogo: (storeId: string, data: FormData) =>
+    getApi().put(`/vendor/store/${storeId}/upload-logo`, data, {
+      headers: { "Content-Type": "multipart/form-data" },
+    }),
 }
