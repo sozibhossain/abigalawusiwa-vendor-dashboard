@@ -18,6 +18,7 @@ interface Product {
   subCategory?: { name: string };
   childCategory?: { name: string };
   price: number;
+  status: "pending" | "approved" | "rejected";
   discountPrice?: number;
   isActive: boolean;
 }
@@ -289,12 +290,15 @@ export default function ProductsPage() {
                         <td className="py-3 px-4">
                           <span
                             className={`px-3 py-1 rounded-full text-xs font-medium ${
-                              product.isActive
+                              product.status === "approved"
                                 ? "bg-green-100 text-green-700"
+                                : product.status === "pending"
+                                ? "bg-yellow-100 text-yellow-700"
                                 : "bg-red-100 text-red-700"
                             }`}
                           >
-                            {product.isActive ? "Active" : "Inactive"}
+                            {product.status.charAt(0).toUpperCase() +
+                              product.status.slice(1)}
                           </span>
                         </td>
 
