@@ -14,7 +14,7 @@ export default function SuccessPage() {
 
         <h1 className="text-2xl font-bold text-gray-900 mb-2">Payment Success</h1>
         <p className="text-gray-600 mb-8">
-          Your payment has been processed. Your subscription will be active and available immediately.
+          Your payment has been processed successfully. Your subscription is now active.
         </p>
 
         <Link href="/dashboard">
