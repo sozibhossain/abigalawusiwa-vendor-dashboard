@@ -144,7 +144,11 @@ export const accountApi = {
     }),
 };
 
-
+/// get all admin APIs
+export const adminApi = {
+  getAllAdmins: (page = 1, limit = 10) =>
+    getApi().get(`/user/all-admins?page=${page}&limit=${limit}`),
+};
 
 // Chat APIs
 export const chatApi = {
